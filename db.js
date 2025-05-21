@@ -18,9 +18,13 @@ const poolPromise = new sql.ConnectionPool(config)
     console.log('✅ Connected to Azure SQL Database');
     return pool;
   })
-  .catch(err => console.error('❌ Database connection failed:', err));
+  .catch(err => {
+    console.error('❌ Database connection failed:', err);
+    throw err; // 💥 抛出错误阻止使用 undefined 的 pool
+  });
 
 module.exports = {
   sql,
   poolPromise,
 };
+

@@ -4,13 +4,8 @@ const multer = require('multer');
 const uploadToAzure = require('../azureBlob');
 const { poolPromise } = require('../db');
 
-// 配置 multer（用内存存储）
 const upload = multer({ storage: multer.memoryStorage() });
 
-/**
- * 上传图片到 Azure Blob Storage
- * POST /api/items/upload-image
- */
 router.post('/upload-image', upload.single('image'), async (req, res) => {
   try {
     const imageUrl = await uploadToAzure(req.file);
@@ -21,10 +16,6 @@ router.post('/upload-image', upload.single('image'), async (req, res) => {
   }
 });
 
-/**
- * 上传物品信息（含图片链接）
- * POST /api/items/upload
- */
 router.post('/upload', async (req, res) => {
   const {
     user_id,
@@ -38,6 +29,10 @@ router.post('/upload', async (req, res) => {
 
   try {
     const pool = await poolPromise;
+    if (!pool) {
+      console.error('❌ Database connection is undefined');
+      return res.status(500).json({ error: 'Database not connected' });
+    }
 
     const insertItem = await pool
       .request()
@@ -73,13 +68,13 @@ router.post('/upload', async (req, res) => {
   }
 });
 
-/**
- * 获取全部未售物品
- * GET /api/items/all
- */
 router.get('/all', async (req, res) => {
   try {
     const pool = await poolPromise;
+    if (!pool) {
+      console.error('❌ Database connection is undefined');
+      return res.status(500).json({ error: 'Database not connected' });
+    }
 
     const itemsResult = await pool
       .request()
@@ -108,14 +103,14 @@ router.get('/all', async (req, res) => {
   }
 });
 
-/**
- * 获取用户的上传物品
- * GET /api/items/user/:user_id
- */
 router.get('/user/:user_id', async (req, res) => {
   const { user_id } = req.params;
   try {
     const pool = await poolPromise;
+    if (!pool) {
+      console.error('❌ Database connection is undefined');
+      return res.status(500).json({ error: 'Database not connected' });
+    }
 
     const itemsResult = await pool
       .request()
@@ -143,14 +138,14 @@ router.get('/user/:user_id', async (req, res) => {
   }
 });
 
-/**
- * 获取某个物品详情
- * GET /api/items/detail/:item_id
- */
 router.get('/detail/:item_id', async (req, res) => {
   const { item_id } = req.params;
   try {
     const pool = await poolPromise;
+    if (!pool) {
+      console.error('❌ Database connection is undefined');
+      return res.status(500).json({ error: 'Database not connected' });
+    }
 
     const itemResult = await pool
       .request()
@@ -183,100 +178,114 @@ router.get('/detail/:item_id', async (req, res) => {
 });
 
 router.put('/edit/:item_id', async (req, res) => {
-    const { item_id } = req.params;
-    const { title, description, price, whatsapp, category } = req.body;
-  
-    try {
-      const pool = await poolPromise;
-  
-      await pool
-        .request()
-        .input('item_id', item_id)
-        .input('title', title)
-        .input('description', description)
-        .input('price', price)
-        .input('whatsapp', whatsapp)
-        .input('category', category)
-        .query(`
-          UPDATE Items
-          SET title = @title,
-              description = @description,
-              price = @price,
-              whatsapp = @whatsapp,
-              category = @category
-          WHERE id = @item_id
-        `);
-  
-      res.status(200).json({ message: 'Item updated successfully' });
-    } catch (err) {
-      console.error('❌ Edit item error:', err);
-      res.status(500).json({ error: 'Failed to edit item' });
+  const { item_id } = req.params;
+  const { title, description, price, whatsapp, category } = req.body;
+
+  try {
+    const pool = await poolPromise;
+    if (!pool) {
+      console.error('❌ Database connection is undefined');
+      return res.status(500).json({ error: 'Database not connected' });
     }
-  });
-  
-  router.patch('/sold/:item_id', async (req, res) => {
-    const { item_id } = req.params;
-  
-    try {
-      const pool = await poolPromise;
-  
-      await pool
-        .request()
-        .input('item_id', item_id)
-        .query(`
-          UPDATE Items
-          SET is_sold = 1
-          WHERE id = @item_id
-        `);
-  
-      res.status(200).json({ message: 'Item marked as sold' });
-    } catch (err) {
-      console.error('❌ Mark as sold error:', err);
-      res.status(500).json({ error: 'Failed to mark item as sold' });
+
+    await pool
+      .request()
+      .input('item_id', item_id)
+      .input('title', title)
+      .input('description', description)
+      .input('price', price)
+      .input('whatsapp', whatsapp)
+      .input('category', category)
+      .query(`
+        UPDATE Items
+        SET title = @title,
+            description = @description,
+            price = @price,
+            whatsapp = @whatsapp,
+            category = @category
+        WHERE id = @item_id
+      `);
+
+    res.status(200).json({ message: 'Item updated successfully' });
+  } catch (err) {
+    console.error('❌ Edit item error:', err);
+    res.status(500).json({ error: 'Failed to edit item' });
+  }
+});
+
+router.patch('/sold/:item_id', async (req, res) => {
+  const { item_id } = req.params;
+
+  try {
+    const pool = await poolPromise;
+    if (!pool) {
+      console.error('❌ Database connection is undefined');
+      return res.status(500).json({ error: 'Database not connected' });
     }
-  });
-  
-  // GET /api/items/search?query=耳机&category=电子
+
+    await pool
+      .request()
+      .input('item_id', item_id)
+      .query(`
+        UPDATE Items
+        SET is_sold = 1
+        WHERE id = @item_id
+      `);
+
+    res.status(200).json({ message: 'Item marked as sold' });
+  } catch (err) {
+    console.error('❌ Mark as sold error:', err);
+    res.status(500).json({ error: 'Failed to mark item as sold' });
+  }
+});
+
 router.get('/search', async (req, res) => {
-    const { query = '', category = '' } = req.query;
-  
-    try {
-      const pool = await poolPromise;
-  
-      let sqlQuery = `
-        SELECT i.*, u.name, u.contact
-        FROM Items i
-        JOIN Users u ON i.user_id = u.id
-        WHERE i.is_sold = 0
-      `;
-  
-      if (query) {
-        sqlQuery += ` AND (i.title LIKE '%${query}%' OR i.description LIKE '%${query}%')`;
-      }
-  
-      if (category) {
-        sqlQuery += ` AND i.category = '${category}'`;
-      }
-  
-      sqlQuery += ` ORDER BY i.created_at DESC`;
-  
-      const itemsResult = await pool.request().query(sqlQuery);
-      const items = itemsResult.recordset;
-  
-      // 加入图片
-      for (const item of items) {
-        const images = await pool
-          .request()
-          .input('item_id', item.id)
-          .query('SELECT image_url FROM ItemImages WHERE item_id = @item_id');
-        item.images = images.recordset.map(img => img.image_url);
-      }
-  
-      res.status(200).json(items);
-    } catch (err) {
-      console.error('❌ Search error:', err);
-      res.status(500).json({ error: 'Search failed' });
+  const { query = '', category = '' } = req.query;
+
+  try {
+    const pool = await poolPromise;
+    if (!pool) {
+      console.error('❌ Database connection is undefined');
+      return res.status(500).json({ error: 'Database not connected' });
     }
-  });
-  
+
+    let sqlQuery = `
+      SELECT i.*, u.name, u.contact
+      FROM Items i
+      JOIN Users u ON i.user_id = u.id
+      WHERE i.is_sold = 0
+    `;
+
+    let request = pool.request();
+
+    if (query) {
+      sqlQuery += ` AND (i.title LIKE @query OR i.description LIKE @query)`;
+      request = request.input('query', `%${query}%`);
+    }
+
+    if (category) {
+      sqlQuery += ` AND i.category = @category`;
+      request = request.input('category', category);
+    }
+
+    sqlQuery += ` ORDER BY i.created_at DESC`;
+
+    const itemsResult = await request.query(sqlQuery);
+    const items = itemsResult.recordset;
+
+    for (const item of items) {
+      const images = await pool
+        .request()
+        .input('item_id', item.id)
+        .query('SELECT image_url FROM ItemImages WHERE item_id = @item_id');
+      item.images = images.recordset.map(img => img.image_url);
+    }
+
+    res.status(200).json(items);
+  } catch (err) {
+    console.error('❌ Search error:', err);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
 module.exports = router;
